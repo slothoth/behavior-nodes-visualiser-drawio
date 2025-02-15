@@ -144,7 +144,7 @@ Draw.loadPlugin(function(ui) {
         // Start from current node and move backwards
         for (let i = currentNodeId - 1; i >= 0; i--) {
             const potentialParent = rows.find(row => row.NodeId === i);
-            if (potentialParent && shape_dict[potentialParent.NodeType] !== 1) {
+            if (potentialParent && shape_dict[potentialParent.NodeType] !== 1 && shape_dict[potentialParent.NodeType] !== 2) {
                 return potentialParent.NodeId;
             }
         }
@@ -190,7 +190,7 @@ Draw.loadPlugin(function(ui) {
             }
 
             // If current node's shape is not 1, it should connect to next node
-            if (shape_dict[row.NodeType] !== 1) {
+            if (shape_dict[row.NodeType] !== 1 && shape_dict[row.NodeType] !== 2) {
                 const nextNodeId = Number(row.NodeId) + 1;
                 if (nextNodeId < rows.length) {
                     console.log(`Sequential Edge: ${row.NodeId} --> ${nextNodeId}`);
@@ -200,6 +200,7 @@ Draw.loadPlugin(function(ui) {
                     });
                 }
             }
+            console.log(shape_dict[row.NodeType])
 
             // For nodes that aren't targets of JumpTo, find their parent
             if (!isJumpToTarget(row.NodeId, rows)) {
