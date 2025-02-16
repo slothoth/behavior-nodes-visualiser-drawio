@@ -209,7 +209,7 @@ class BehaviorTreeGraphGenerator:
 
 
 def main():
-    output_path = "behavior_tree.dot"
+    output_path = f"{TREE.replace(' ', '_')}.dot"
     generator = BehaviorTreeGraphGenerator(DB_PATH, TREE)
 
     # Load data from database
