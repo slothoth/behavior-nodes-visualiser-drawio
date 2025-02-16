@@ -1,8 +1,24 @@
 import sqlite3
+from sys import platform
 from typing import Dict, List, Tuple, Any
 import textwrap
+import getpass
+import os
 
-DB_PATH = "/Users/samuelmayo/Library/Application Support/Civilization VII/Debug/gameplay-copy.sqlite"  # TODO make tailored
+user = getpass.getuser()
+
+if platform.lower() == "windows":
+    DB_PATH = f"C:/Users/{user}/AppData/Local/Firaxis Games/Sid Meier's Civilization VII/Debug/gameplay-copy.sqlite"
+
+if platform.lower() == "darwin":
+    DB_PATH = f"/Users/{user}/Library/Application Support/Civilization VII/Debug/gameplay-copy.sqlite"
+
+if platform.lower() == "linux":
+    raise(OSError("I have no idea where your debugGameplay db will be stored, but you use Linux, I got faith in you sorting it out"))
+
+if not os.path.exists(DB_PATH):
+    raise(Exception("Can't find where your debug db is. Please edit this script with the 'DB_PATH = $yourfilepath' at the top of this file below DO_KEY where yours is."))
+
 TREE = 'Minor Power Assault'
 DO_KEY = True
 class BehaviorTreeGraphGenerator:
