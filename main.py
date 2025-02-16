@@ -1,16 +1,17 @@
-import os
 import sqlite3
 from typing import Dict, List, Tuple, Any
+import textwrap
 
-
+DB_PATH = "/Users/samuelmayo/Library/Application Support/Civilization VII/Debug/gameplay-copy.sqlite"  # TODO make tailored
 TREE = 'Minor Power Assault'
-
+DO_KEY = True
 class BehaviorTreeGraphGenerator:
     def __init__(self, db_path: str, tree: str):
         """Initialize the graph generator with database path."""
         self.db_path = db_path
         self.tree = tree
-        self.node_def_data = {}
+        self.node_def_descriptions = {}
+        self.nodetype_counts = {}
 
     def load_and_query_database(self) -> Tuple[List[Dict[str, Any]], Dict[str, int]]:
         """Load the database and execute queries to get node data and shape definitions."""
@@ -21,11 +22,10 @@ class BehaviorTreeGraphGenerator:
             column_names = [description[0] for description in conn.execute(node_def_query).description]
 
             # Create shape dictionary
-            shape_dict = {
-                row[column_names.index('NodeType')]: row[column_names.index('ShapeId')]
-                for row in aux_rows
-            }
-            self.node_def_data = get_sql_dict(conn, node_def_query)
+            shape_dict = { row[column_names.index('NodeType')]: row[column_names.index('ShapeId')]
+                            for row in aux_rows}
+            node_def_data = get_sql_dict(conn, node_def_query)
+            self.node_def_descriptions = {i['NodeType']: i['Description'] for i in node_def_data}
 
             # Get TreeData
             query = "SELECT * FROM TreeData WHERE TreeName = '" + self.tree + "';"
@@ -49,6 +49,11 @@ class BehaviorTreeGraphGenerator:
             # we use the defnID and the NodeType
 
             unique_node_types = list(set(i['NodeType'] for i in nodes_data))
+
+            for d in nodes_data:
+                value = d['NodeType']
+                self.nodetype_counts[value] = self.nodetype_counts.get(value, 0) + 1
+
 
             unique_node_dict = {}
             for i in unique_node_types:
@@ -90,6 +95,17 @@ class BehaviorTreeGraphGenerator:
                 return potential_parent['NodeId']
         return None
 
+    def node_description(self, node_type, key_jobs, key_index, node_def):
+        fmt_lines = textwrap.fill(self.node_def_descriptions[node_type], width=30)
+        if DO_KEY and self.nodetype_counts[node_type] > 2:
+            if node_type not in key_jobs:
+                label = f'{node_type}:\n {fmt_lines}'
+                key_jobs[node_type] = f'    {key_index} [label="{label}", shape=box, style=filled, fillcolor=orange];'
+                key_index += 1
+        else:
+            node_def += f'{fmt_lines}\n'
+        return node_def, key_index, key_jobs
+
     def is_jump_to_target(self, node_id: int, rows: List[Dict[str, Any]]) -> bool:
         """Check if a node is a target of any JumpTo."""
         return any(row['JumpTo'] == node_id for row in rows if 'JumpTo' in row)
@@ -105,26 +121,30 @@ class BehaviorTreeGraphGenerator:
 
         # Add nodes
         dot_content.append('    // Nodes')
+
+        key_jobs = {}
+        key_index = len(rows) + 1
         for row in rows:
             node_id = str(row['NodeId'])
             node_type = row['NodeType']
             shape = 'circle' if row['shape'] == 0 else 'box'            # ironically, shape here is not about diagram, but num of edges on node possible
             style = 'filled'
             fillcolor = 'lightblue' if shape == 'circle' else 'lightgreen'
-
+            label = node_id
             if 'subdefs' not in row:
-                node_def = f'    {node_id} [label="{node_id}\\n{node_type}", '
+                label += f': {node_type}\n'
+                label, key_index, key_jobs = self.node_description(node_type, key_jobs, key_index, label)
             else:
-                node_def = f'{node_id} [label="{node_id}: {node_type}\\n'
+                label += f': {node_type}\\n'
+                label, key_index, key_jobs = self.node_description(node_type, key_jobs, key_index, label)
                 for i in row['subdefs']:
-                    node_def += f"{i['data_name']}:\\l"
+                    label += f"{i['data_name']}:\\l"
                     for key, val in i.items():
                         if key == 'data_name':
                             continue
-                        node_def += f'{key} : {val}\\l'
-                    node_def += '\\n'
-                node_def += '",'
-            node_def += f'shape={shape}, style={style}, fillcolor={fillcolor}];'
+                        label += f'{key} : {val}\\l'
+                    label += '\\n'
+            node_def = f'    {node_id} [label = "{label}", shape="{shape}", style={style}, fillcolor={fillcolor}];'
             dot_content.append(node_def)
 
         # Add end node
@@ -132,8 +152,14 @@ class BehaviorTreeGraphGenerator:
         dot_content.append(f'    {last_node_id} [label="End", shape=box, '
                            'style=filled, fillcolor=lightgreen];')
 
+        dot_content.append('    // Keys')
+        for val in key_jobs.values():
+            dot_content.append(val)
+
         dot_content.append('')
         dot_content.append('    // Edges')
+
+
 
         # Add edges
         for row in rows:
@@ -167,9 +193,8 @@ class BehaviorTreeGraphGenerator:
 
 
 def main():
-    db_path = "/Users/USERNAME/Library/Application Support/Civilization VII/Debug/gameplay-copy.sqlite"           # TODO make tailored
     output_path = "behavior_tree.dot"
-    generator = BehaviorTreeGraphGenerator(db_path, TREE)
+    generator = BehaviorTreeGraphGenerator(DB_PATH, TREE)
 
     # Load data from database
     combined_node_data = generator.load_and_query_database()
